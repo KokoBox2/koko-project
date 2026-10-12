@@ -8,84 +8,66 @@ use Illuminate\Http\Request;
 
 class AlcBrandController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index(AlcType $alcType)
-{
-    $alcBrands = AlcType::where('alctype_id', $alcType->id)->get();
-
-    return(view('alcBrands.index', ['alcBrands' => $alcBrands,'alcType'=> $alcType]));
-}
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create(AlcType $alcType)
+    public function index(Request $request)
     {
-        return view('alcBrands.create',['alcTypes'=>$alcType]);
+        $alcTypes = AlcType::orderBy('name')->get();
+        $alcBrands = AlcBrand::with('alcType')
+            ->when($request->filled('search'), fn ($query) => $query->where(function ($query) use ($request) {
+                $query->where('name', 'like', '%' . $request->search . '%')
+                    ->orWhere('flavour', 'like', '%' . $request->search . '%');
+            }))
+            ->when($request->filled('alctype_id'), fn ($query) => $query->where('alctype_id', $request->alctype_id))
+            ->orderBy('name')
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('alcBrands.index', compact('alcBrands', 'alcTypes'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request, AlcType $alcType)
+    public function create()
     {
-        $validated=$request->validate([
+        $alcTypes = AlcType::orderBy('name')->get();
+
+        return view('alcBrands.create', compact('alcTypes'));
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
             'alctype_id' => 'required|exists:alctypes,id',
             'name' => 'required|string|max:255',
-            'alcpercent' => 'required|integer|min:0|max:100',
+            'alcpercent' => 'required|integer|between:0,100',
             'flavour' => 'required|string|max:255',
         ]);
-        $validated['alctype_id'] = $alcType->id;
-        $alcBrand = AlcBrand::create($validated);
-        return redirect()
-        ->route('alcBrands.index',['alcType'=>$alcType->id])
-        ->with('status','Brand created successfully!');
+        AlcBrand::create($validated);
+
+        return redirect()->route('alcBrands.index')->with('status', 'A termék létrejött.');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(AlcBrand $alcBrand)
+    public function edit(AlcBrand $alcBrand)
     {
-       
+        $alcTypes = AlcType::orderBy('name')->get();
+
+        return view('alcBrands.edit', compact('alcBrand', 'alcTypes'));
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(AlcBrand $alcBrand, AlcType $alcType)
+    public function update(Request $request, AlcBrand $alcBrand)
     {
-        $alcType=AlcType::All();
-        return view('alcBrands.edit', compact('alcBrand','alcTypes','alcType'));
-    }
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, AlcBrand $alcBrand, AlcType $alcType)
-    {
-        $validated=$request->validate([
+        $validated = $request->validate([
             'alctype_id' => 'required|exists:alctypes,id',
             'name' => 'required|string|max:255',
-            'alcpercent' => 'required|integer|min:0|max:100',
+            'alcpercent' => 'required|integer|between:0,100',
             'flavour' => 'required|string|max:255',
         ]);
-
         $alcBrand->update($validated);
-        return redirect()
-        ->route('alcBrands.index',['alcType'=>$alcType->id])
-        ->with('status','Brand updated successfully!');
+
+        return redirect()->route('alcBrands.index')->with('status', 'A termék módosítva.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(AlcBrand $alcBrand, AlcType $alcType)
+    public function destroy(AlcBrand $alcBrand)
     {
         $alcBrand->delete();
-        return redirect()
-            ->route('alcBrands.index',['alcType'=>$alcType->id])
-            ->with('status','Brand deleted successfully!');
+
+        return redirect()->route('alcBrands.index')->with('status', 'A termék törölve.');
     }
 }
