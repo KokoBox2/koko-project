@@ -2,63 +2,72 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AlcBrand;
+use App\Models\AlcType;
 use Illuminate\Http\Request;
 
 class AlcBrandController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        $alcTypes = AlcType::orderBy('name')->get();
+        $alcBrands = AlcBrand::with('alcType')
+            ->when($request->filled('search'), fn ($query) => $query->where(function ($query) use ($request) {
+                $query->where('name', 'like', '%' . $request->search . '%')
+                    ->orWhere('flavour', 'like', '%' . $request->search . '%');
+            }))
+            ->when($request->filled('alctype_id'), fn ($query) => $query->where('alctype_id', $request->alctype_id))
+            ->orderBy('name')
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('alcBrands.index', compact('alcBrands', 'alcTypes'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
-        //
+        $alcTypes = AlcType::orderBy('name')->get();
+
+        return view('alcBrands.create', compact('alcTypes'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        //
+        $validated = $request->validate([
+            'alctype_id' => 'required|exists:alctypes,id',
+            'name' => 'required|string|max:255',
+            'alcpercent' => 'required|integer|between:0,100',
+            'flavour' => 'required|string|max:255',
+        ]);
+        AlcBrand::create($validated);
+
+        return redirect()->route('alcBrands.index')->with('status', 'A termék létrejött.');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function edit(AlcBrand $alcBrand)
     {
-        //
+        $alcTypes = AlcType::orderBy('name')->get();
+
+        return view('alcBrands.edit', compact('alcBrand', 'alcTypes'));
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
+    public function update(Request $request, AlcBrand $alcBrand)
     {
-        //
+        $validated = $request->validate([
+            'alctype_id' => 'required|exists:alctypes,id',
+            'name' => 'required|string|max:255',
+            'alcpercent' => 'required|integer|between:0,100',
+            'flavour' => 'required|string|max:255',
+        ]);
+        $alcBrand->update($validated);
+
+        return redirect()->route('alcBrands.index')->with('status', 'A termék módosítva.');
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function destroy(AlcBrand $alcBrand)
     {
-        //
-    }
+        $alcBrand->delete();
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        return redirect()->route('alcBrands.index')->with('status', 'A termék törölve.');
     }
 }
